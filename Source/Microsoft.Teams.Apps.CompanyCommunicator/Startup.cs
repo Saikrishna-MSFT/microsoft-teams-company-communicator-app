@@ -60,6 +60,8 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator
             services.AddRepositories();
 
             services.AddNotificationDelivery();
+
+            services.AddHelpers();
         }
 
         /// <summary>
