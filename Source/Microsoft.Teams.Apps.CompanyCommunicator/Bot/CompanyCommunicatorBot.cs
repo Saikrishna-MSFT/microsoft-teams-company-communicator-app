@@ -114,7 +114,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Bot
                             TenantId = turnContext.Activity.Conversation.TenantId,
                         };
                         await ((BotFrameworkAdapter)turnContext.Adapter).CreateConversationAsync(
-                            turnContext.Activity.TeamsGetChannelId(),
+                            turnContext.Activity.ChannelId,
                             turnContext.Activity.ServiceUrl,
                             credentials,
                             conversationParameters,
@@ -162,7 +162,6 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Bot
                         }
                     }
                 }
-
             }
             catch (Exception ex)
             {
