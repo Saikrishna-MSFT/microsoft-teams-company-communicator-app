@@ -19,13 +19,13 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Controllers
     [Authorize(PolicyNames.MustBeValidUpnPolicy)]
     public class TeamDataController : ControllerBase
     {
-        private readonly TeamDataRepository teamDataRepository;
+        private readonly ITeamDataRepository teamDataRepository;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="TeamDataController"/> class.
         /// </summary>
         /// <param name="teamDataRepository">Team data repository instance.</param>
-        public TeamDataController(TeamDataRepository teamDataRepository)
+        public TeamDataController(ITeamDataRepository teamDataRepository)
         {
             this.teamDataRepository = teamDataRepository;
         }
@@ -43,7 +43,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Controllers
             {
                 var team = new TeamData
                 {
-                    TeamId = entity.TeamId,
+                    Id = entity.TeamId,
                     Name = entity.Name,
                 };
                 result.Add(team);

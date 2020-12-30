@@ -1,13 +1,25 @@
 import * as React from 'react';
+import { withTranslation, WithTranslation } from "react-i18next";
 import './statusTaskModule.scss';
-import { getSentNotification } from '../../apis/messageListApi';
+import { getSentNotification, exportNotification } from '../../apis/messageListApi';
 import { RouteComponentProps } from 'react-router-dom';
 import * as AdaptiveCards from "adaptivecards";
-import { Loader } from '@stardust-ui/react';
+import { initializeIcons } from 'office-ui-fabric-react/lib/Icons';
+import { TooltipHost } from 'office-ui-fabric-react';
+import { Icon, Loader, List, Image, Button, IconProps } from '@stardust-ui/react';
+import * as microsoftTeams from "@microsoft/teams-js";
 import {
     getInitAdaptiveCard, setCardTitle, setCardImageLink, setCardSummary,
     setCardAuthor, setCardBtn
 } from '../AdaptiveCard/adaptiveCard';
+import { ImageUtil } from '../../utility/imageutility';
+import { formatDate, formatDuration, formatNumber } from '../../i18n';
+import { TFunction } from "i18next";
+
+export interface IListItem {
+    header: string,
+    media: JSX.Element,
+}
 
 export interface IMessage {
     id: string;
@@ -17,7 +29,7 @@ export interface IMessage {
     responses?: string;
     succeeded?: string;
     failed?: string;
-    throttled?: string;
+    unknown?: string;
     sentDate?: string;
     imageLink?: string;
     summary?: string;
@@ -26,17 +38,27 @@ export interface IMessage {
     buttonTitle?: string;
     teamNames?: string[];
     rosterNames?: string[];
+    groupNames?: string[];
     allUsers?: boolean;
     sendingStartedDate?: string;
     sendingDuration?: string;
+    errorMessage?: string;
+    warningMessage?: string;
+    canDownload?: boolean;
+    sendingCompleted?: boolean;
 }
 
 export interface IStatusState {
     message: IMessage;
     loader: boolean;
+    page: string;
+    teamId?: string;
 }
 
-class StatusTaskModule extends React.Component<RouteComponentProps, IStatusState> {
+interface StatusTaskModuleProps extends RouteComponentProps, WithTranslation { }
+
+class StatusTaskModule extends React.Component<StatusTaskModuleProps, IStatusState> {
+    readonly localize: TFunction;
     private initMessage = {
         id: "",
         title: ""
@@ -44,19 +66,30 @@ class StatusTaskModule extends React.Component<RouteComponentProps, IStatusState
 
     private card: any;
 
-    constructor(props: RouteComponentProps) {
+    constructor(props: StatusTaskModuleProps) {
         super(props);
+        initializeIcons();
 
-        this.card = getInitAdaptiveCard();
+        this.localize = this.props.t;
+
+        this.card = getInitAdaptiveCard(this.props.t);
 
         this.state = {
             message: this.initMessage,
-            loader: true
+            loader: true,
+            page: "ViewStatus",
+            teamId: '',
         };
     }
 
     public componentDidMount() {
         let params = this.props.match.params;
+        microsoftTeams.initialize();
+        microsoftTeams.getContext((context) => {
+            this.setState({
+                teamId: context.teamId,
+            });
+        });
 
         if ('id' in params) {
             let id = params['id'];
@@ -86,32 +119,18 @@ class StatusTaskModule extends React.Component<RouteComponentProps, IStatusState
     private getItem = async (id: number) => {
         try {
             const response = await getSentNotification(id);
-            response.data.sendingDuration = this.formatNotificationSendingDuration(response.data.sendingStartedDate, response.data.sentDate);
-            response.data.sendingStartedDate = this.formatNotificationDate(response.data.sendingStartedDate);
-            response.data.sentDate = this.formatNotificationDate(response.data.sentDate);
+            response.data.sendingDuration = formatDuration(response.data.sendingStartedDate, response.data.sentDate);
+            response.data.sendingStartedDate = formatDate(response.data.sendingStartedDate);
+            response.data.sentDate = formatDate(response.data.sentDate);
+            response.data.succeeded = formatNumber(response.data.succeeded);
+            response.data.failed = formatNumber(response.data.failed);
+            response.data.unknown = response.data.unknown && formatNumber(response.data.unknown);
             this.setState({
                 message: response.data
             });
         } catch (error) {
             return error;
         }
-    }
-
-    private formatNotificationSendingDuration = (sendingStartedDate: string, sentDate: string) => {
-        let sendingDuration = "";
-        if (sendingStartedDate && sentDate) {
-            let timeDifference = new Date(sentDate).getTime() - new Date(sendingStartedDate).getTime();
-            sendingDuration = new Date(timeDifference).toISOString().substr(11, 8);
-        }
-        return sendingDuration;
-    }
-
-    private formatNotificationDate = (notificationDate: string) => {
-        if (notificationDate) {
-            notificationDate = (new Date(notificationDate)).toLocaleString(navigator.language, { year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', hour12: true });
-            notificationDate = notificationDate.replace(',', '\xa0\xa0');
-        }
-        return notificationDate;
     }
 
     public render(): JSX.Element {
@@ -122,90 +141,202 @@ class StatusTaskModule extends React.Component<RouteComponentProps, IStatusState
                 </div>
             );
         } else {
-            return (
-                <div className="taskModule">
-                    <div className="formContainer">
-                        <div className="formContentContainer" >
-                            <div className="contentField">
-                                <h3>Title</h3>
-                                <span>{this.state.message.title}</span>
+            const downloadIcon: IconProps = { name: 'download', size: "medium" };
+            if (this.state.page === "ViewStatus") {
+                return (
+                    <div className="taskModule">
+                        <div className="formContainer">
+                            <div className="formContentContainer" >
+                                <div className="contentField">
+                                    <h3>{this.localize("TitleText")}</h3>
+                                    <span>{this.state.message.title}</span>
+                                </div>
+                                <div className="contentField">
+                                    <h3>{this.localize("SendingStarted")}</h3>
+                                    <span>{this.state.message.sendingStartedDate}</span>
+                                </div>
+                                <div className="contentField">
+                                    <h3>{this.localize("Completed")}</h3>
+                                    <span>{this.state.message.sentDate}</span>
+                                </div>
+                                <div className="contentField">
+                                    <h3>{this.localize("Duration")}</h3>
+                                    <span>{this.state.message.sendingDuration}</span>
+                                </div>
+                                <div className="contentField">
+                                    <h3>{this.localize("Results")}</h3>
+                                    <label>{this.localize("Success", { "SuccessCount": this.state.message.succeeded })}</label>
+                                    <br />
+                                    <label>{this.localize("Failure", { "FailureCount": this.state.message.failed })}</label>
+                                    <br />
+                                    {this.state.message.unknown &&
+                                        <>
+                                        <label>{this.localize("Unknown", { "UnknownCount": this.state.message.unknown })}</label>
+                                        </>
+                                    }
+                                </div>
+                                <div className="contentField">
+                                    {this.renderAudienceSelection()}
+                                </div>
+                                <div className="contentField">
+                                    {this.renderErrorMessage()}
+                                </div>
+                                <div className="contentField">
+                                    {this.renderWarningMessage()}
+                                </div>
                             </div>
-                            <div className="contentField">
-                                <h3>Sending started</h3>
-                                <span>{this.state.message.sendingStartedDate}</span>
-                            </div>
-                            <div className="contentField">
-                                <h3>Completed</h3>
-                                <span>{this.state.message.sentDate}</span>
-                            </div>
-                            <div className="contentField">
-                                <h3>Duration</h3>
-                                <span>{this.state.message.sendingDuration}</span>
-                            </div>
-                            <div className="contentField">
-                                <h3>Results</h3>
-                                <label>Success : </label>
-                                <span>{this.state.message.succeeded}</span>
-                                <br />
-                                <label>Failure : </label>
-                                <span>{this.state.message.failed}</span>
-                                <br />
-                                <label>Throttled : </label>
-                                <span>{this.state.message.throttled}</span>
-                            </div>
-                            <div className="contentField">
-                                {this.renderAudienceSelection()}
+                            <div className="adaptiveCardContainer">
                             </div>
                         </div>
-                        <div className="adaptiveCardContainer">
+
+                        <div className="footerContainer">
+                            <div className={this.state.message.canDownload ? "" : "disabled"}>
+                                <div className="buttonContainer">
+                                    <Loader id="sendingLoader" className="hiddenLoader sendingLoader" size="smallest" label={this.localize("ExportLabel")} labelPosition="end" />
+                                    <TooltipHost content={!this.state.message.sendingCompleted ? "" : (this.state.message.canDownload ? "" : this.localize("ExportButtonProgressText"))} calloutProps={{ gapSpace: 0 }}>
+                                        <Button icon={downloadIcon} disabled={!this.state.message.canDownload || !this.state.message.sendingCompleted} content={this.localize("ExportButtonText")} id="exportBtn" onClick={this.onExport} primary />
+                                    </TooltipHost>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+            else if (this.state.page === "SuccessPage") {
+                return (
+                    <div className="taskModule">
+                        <div className="formContainer">
+                            <div className="displayMessageField">
+                                <br />
+                                <br />
+                                <div><span><Icon className="iconStyle" name="stardust-checkmark" xSpacing="before" size="largest" outline /></span>
+                                    <h1>{this.localize("ExportQueueTitle")}</h1></div>
+                                <span>{this.localize("ExportQueueSuccessMessage1")}</span>
+                                <br />
+                                <br />
+                                <span>{this.localize("ExportQueueSuccessMessage2")}</span>
+                                <br />
+                                <span>{this.localize("ExportQueueSuccessMessage3")}</span>
+                            </div>
+                        </div>
+                        <div className="footerContainer">
+                            <div className="buttonContainer">
+                                <Button content={this.localize("CloseText")} id="closeBtn" onClick={this.onClose} primary />
+                            </div>
                         </div>
                     </div>
 
-                    <div className="footerContainer">
-                        <div className="buttonContainer">
+                );
+            }
+            else {
+                return (
+                    <div className="taskModule">
+                        <div className="formContainer">
+                            <div className="displayMessageField">
+                                <br />
+                                <br />
+                                <div><span><Icon className="iconStyle" name="stardust-close" xSpacing="before" size="largest" outline /></span>
+                                    <h1 className="light">{this.localize("ExportErrorTitle")}</h1></div>
+                                <span>{this.localize("ExportErrorMessage")}</span>
+                            </div>
+                        </div>
+                        <div className="footerContainer">
+                            <div className="buttonContainer">
+                                <Button content={this.localize("CloseText")} id="closeBtn" onClick={this.onClose} primary />
+                            </div>
                         </div>
                     </div>
-                </div>
-            );
+                );
+            }
         }
     }
 
+    private onClose = () => {
+        microsoftTeams.tasks.submitTask();
+    }
+
+    private onExport = async () => {
+        let spanner = document.getElementsByClassName("sendingLoader");
+        spanner[0].classList.remove("hiddenLoader");
+        let payload = {
+            id: this.state.message.id,
+            teamId: this.state.teamId
+        };
+        await exportNotification(payload).then(() => {
+            this.setState({ page: "SuccessPage" });
+        }).catch(() => {
+            this.setState({ page: "ErrorPage" });
+        });
+    }
+
+    private getItemList = (items: string[]) => {
+        let resultedTeams: IListItem[] = [];
+        if (items) {
+            resultedTeams = items.map((element) => {
+                const resultedTeam: IListItem = {
+                    header: element,
+                    media: <Image src={ImageUtil.makeInitialImage(element)} avatar />
+                }
+                return resultedTeam;
+            });
+        }
+        return resultedTeams;
+    }
     private renderAudienceSelection = () => {
         if (this.state.message.teamNames && this.state.message.teamNames.length > 0) {
-            let length = this.state.message.teamNames.length;
             return (
                 <div>
-                    <h3>Sent to General channel in teams</h3>
-                    {this.state.message.teamNames.sort().map((team, index) => {
-                        if (length === index + 1) {
-                            return (<span key={`teamName${index}`} >{team}</span>);
-                        } else {
-                            return (<span key={`teamName${index}`} >{team}, </span>);
-                        }
-                    })}
+                    <h3>{this.localize("SentToGeneralChannel")}</h3>
+                    <List items={this.getItemList(this.state.message.teamNames)} />
                 </div>);
         } else if (this.state.message.rosterNames && this.state.message.rosterNames.length > 0) {
-            let length = this.state.message.rosterNames.length;
             return (
                 <div>
-                    <h3>Sent in chat to people in teams</h3>
-                    {this.state.message.rosterNames.sort().map((team, index) => {
-                        if (length === index + 1) {
-                            return (<span key={`teamName${index}`} >{team}</span>);
-                        } else {
-                            return (<span key={`teamName${index}`} >{team}, </span>);
-                        }
-                    })}
+                    <h3>{this.localize("SentToRosters")}</h3>
+                    <List items={this.getItemList(this.state.message.rosterNames)} />
+                </div>);
+        } else if (this.state.message.groupNames && this.state.message.groupNames.length > 0) {
+            return (
+                <div>
+                    <h3>{this.localize("SentToGroups1")}</h3>
+                    <span>{this.localize("SentToGroups2")}</span>
+                    <List items={this.getItemList(this.state.message.groupNames)} />
                 </div>);
         } else if (this.state.message.allUsers) {
             return (
                 <div>
-                    <h3>Sent in chat to everyone</h3>
+                    <h3>{this.localize("SendToAllUsers")}</h3>
                 </div>);
+        } else {
+            return (<div></div>);
+        }
+    }
+    private renderErrorMessage = () => {
+        if (this.state.message.errorMessage) {
+            return (
+                <div>
+                    <h3>{this.localize("Errors")}</h3>
+                    <span>{this.state.message.errorMessage}</span>
+                </div>
+            );
+        } else {
+            return (<div></div>);
+        }
+    }
+
+    private renderWarningMessage = () => {
+        if (this.state.message.warningMessage) {
+            return (
+                <div>
+                    <h3>{this.localize("Warnings")}</h3>
+                    <span>{this.state.message.warningMessage}</span>
+                </div>
+            );
         } else {
             return (<div></div>);
         }
     }
 }
 
-export default StatusTaskModule;
+const StatusTaskModuleWithTranslation = withTranslation()(StatusTaskModule);
+export default StatusTaskModuleWithTranslation;

@@ -7,7 +7,6 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Repositories.Extensions
     using System.Threading.Tasks;
     using Microsoft.Bot.Schema;
     using Microsoft.Bot.Schema.Teams;
-    using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories;
     using Microsoft.Teams.Apps.CompanyCommunicator.Common.Repositories.TeamData;
 
     /// <summary>
@@ -22,7 +21,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Repositories.Extensions
         /// <param name="activity">Bot conversation update activity instance.</param>
         /// <returns>A task that represents the work queued to execute.</returns>
         public static async Task SaveTeamDataAsync(
-            this TeamDataRepository teamDataRepository,
+            this ITeamDataRepository teamDataRepository,
             IConversationUpdateActivity activity)
         {
             var teamDataEntity = TeamDataRepositoryExtensions.ParseTeamData(activity);
@@ -39,13 +38,13 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Repositories.Extensions
         /// <param name="activity">Bot conversation update activity instance.</param>
         /// <returns>A task that represents the work queued to execute.</returns>
         public static async Task RemoveTeamDataAsync(
-            this TeamDataRepository teamDataRepository,
+            this ITeamDataRepository teamDataRepository,
             IConversationUpdateActivity activity)
         {
             var teamDataEntity = TeamDataRepositoryExtensions.ParseTeamData(activity);
             if (teamDataEntity != null)
             {
-                var found = await teamDataRepository.GetAsync(PartitionKeyNames.TeamDataTable.TeamDataPartition, teamDataEntity.TeamId);
+                var found = await teamDataRepository.GetAsync(TeamDataTableNames.TeamDataPartition, teamDataEntity.TeamId);
                 if (found != null)
                 {
                     await teamDataRepository.DeleteAsync(found);
@@ -60,7 +59,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Repositories.Extensions
             {
                 var teamsDataEntity = new TeamDataEntity
                 {
-                    PartitionKey = PartitionKeyNames.TeamDataTable.TeamDataPartition,
+                    PartitionKey = TeamDataTableNames.TeamDataPartition,
                     RowKey = channelData.Team.Id,
                     TeamId = channelData.Team.Id,
                     Name = channelData.Team.Name,

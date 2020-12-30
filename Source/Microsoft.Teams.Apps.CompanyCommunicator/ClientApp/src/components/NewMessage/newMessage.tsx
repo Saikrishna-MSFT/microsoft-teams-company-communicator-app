@@ -1,21 +1,28 @@
 import * as React from 'react';
-import './newMessage.scss';
-import './teamTheme.scss';
+import { RouteComponentProps } from 'react-router-dom';
+import { withTranslation, WithTranslation } from "react-i18next";
 import { Input, TextArea, Radiobutton, RadiobuttonGroup } from 'msteams-ui-components-react';
+import { initializeIcons } from 'office-ui-fabric-react/lib/Icons';
 import * as AdaptiveCards from "adaptivecards";
 import { Button, Loader, Dropdown, Text } from '@stardust-ui/react';
 import * as microsoftTeams from "@microsoft/teams-js";
-import { RouteComponentProps } from 'react-router-dom';
-import { getDraftNotification, getTeams, createDraftNotification, updateDraftNotification } from '../../apis/messageListApi';
+
+import './newMessage.scss';
+import './teamTheme.scss';
+import { getDraftNotification, getTeams, createDraftNotification, updateDraftNotification, searchGroups, getGroups, verifyGroupAccess  } from '../../apis/messageListApi';
 import {
     getInitAdaptiveCard, setCardTitle, setCardImageLink, setCardSummary,
     setCardAuthor, setCardBtn
 } from '../AdaptiveCard/adaptiveCard';
-import { initializeIcons } from 'office-ui-fabric-react/lib/Icons';
 import { getBaseUrl } from '../../configVariables';
+import { ImageUtil } from '../../utility/imageutility';
+import { TFunction } from "i18next";
 
 type dropdownItem = {
+    key: string,
     header: string,
+    content: string,
+    image: string,
     team: {
         id: string,
     },
@@ -31,6 +38,7 @@ export interface IDraftMessage {
     buttonLink?: string,
     teams: any[],
     rosters: any[],
+    groups: any[],
     allUsers: boolean
 }
 
@@ -46,30 +54,40 @@ export interface formState {
     teamsOptionSelected: boolean,
     rostersOptionSelected: boolean,
     allUsersOptionSelected: boolean,
+    groupsOptionSelected: boolean,
     teams?: any[],
+    groups?: any[],
     exists?: boolean,
     messageId: string,
     loader: boolean,
+    groupAccess: boolean,
+    loading: boolean,
+    noResultMessage: string,
+    unstablePinned?: boolean,
     selectedTeamsNum: number,
     selectedRostersNum: number,
+    selectedGroupsNum: number,
     selectedRadioBtn: string,
     selectedTeams: dropdownItem[],
     selectedRosters: dropdownItem[],
+    selectedGroups: dropdownItem[],
     errorImageUrlMessage: string,
     errorButtonUrlMessage: string,
 }
 
-export interface INewMessageProps extends RouteComponentProps {
+export interface INewMessageProps extends RouteComponentProps, WithTranslation {
     getDraftMessagesList?: any;
 }
 
-export default class NewMessage extends React.Component<INewMessageProps, formState> {
+class NewMessage extends React.Component<INewMessageProps, formState> {
+    readonly localize: TFunction;
     private card: any;
 
     constructor(props: INewMessageProps) {
         super(props);
         initializeIcons();
-        this.card = getInitAdaptiveCard();
+        this.localize = this.props.t;
+        this.card = getInitAdaptiveCard(this.localize);
         this.setDefaultCard(this.card);
 
         this.state = {
@@ -84,13 +102,20 @@ export default class NewMessage extends React.Component<INewMessageProps, formSt
             teamsOptionSelected: true,
             rostersOptionSelected: false,
             allUsersOptionSelected: false,
+            groupsOptionSelected: false,
             messageId: "",
             loader: true,
+            groupAccess: false,
+            loading: false,
+            noResultMessage: "",
+            unstablePinned: true,
             selectedTeamsNum: 0,
             selectedRostersNum: 0,
+            selectedGroupsNum: 0,
             selectedRadioBtn: "teams",
             selectedTeams: [],
             selectedRosters: [],
+            selectedGroups: [],
             errorImageUrlMessage: "",
             errorButtonUrlMessage: "",
         }
@@ -101,6 +126,7 @@ export default class NewMessage extends React.Component<INewMessageProps, formSt
         //- Handle the Esc key
         document.addEventListener("keydown", this.escFunction, false);
         let params = this.props.match.params;
+        this.setGroupAccess();
         this.getTeamList().then(() => {
             if ('id' in params) {
                 let id = params['id'];
@@ -112,6 +138,12 @@ export default class NewMessage extends React.Component<INewMessageProps, formSt
                         messageId: id,
                         selectedTeams: selectedTeams,
                         selectedRosters: selectedRosters,
+                    })
+                });
+                this.getGroupData(id).then(() => {
+                    const selectedGroups = this.makeDropdownItems(this.state.groups);
+                    this.setState({
+                        selectedGroups: selectedGroups
                     })
                 });
             } else {
@@ -132,12 +164,33 @@ export default class NewMessage extends React.Component<INewMessageProps, formSt
         });
     }
 
+    private makeDropdownItems = (items: any[] | undefined) => {
+        const resultedTeams: dropdownItem[] = [];
+        if (items) {
+            items.forEach((element) => {
+                resultedTeams.push({
+                    key: element.id,
+                    header: element.name,
+                    content: element.mail,
+                    image: ImageUtil.makeInitialImage(element.name),
+                    team: {
+                        id: element.id
+                    },
+
+                });
+            });
+        }
+        return resultedTeams;
+    }
+
     private makeDropdownItemList = (items: any[], fromItems: any[] | undefined) => {
         const dropdownItemList: dropdownItem[] = [];
         items.forEach(element =>
             dropdownItemList.push(
                 typeof element !== "string" ? element : {
-                    header: fromItems!.find(x => x.teamId === element).name,
+                    key: fromItems!.find(x => x.id === element).id,
+                    header: fromItems!.find(x => x.id === element).name,
+                    image: ImageUtil.makeInitialImage(fromItems!.find(x => x.id === element).name),
                     team: {
                         id: element
                     }
@@ -147,12 +200,17 @@ export default class NewMessage extends React.Component<INewMessageProps, formSt
     }
 
     public setDefaultCard = (card: any) => {
-        setCardTitle(card, "Title");
+        const titleAsString = this.localize("TitleText");
+        const summaryAsString = this.localize("Summary");
+        const authorAsString = this.localize("Author1");
+        const buttonTitleAsString = this.localize("ButtonTitle");
+
+        setCardTitle(card, titleAsString);
         let imgUrl = getBaseUrl() + "/image/imagePlaceholder.png";
         setCardImageLink(card, imgUrl);
-        setCardSummary(card, "Summary");
-        setCardAuthor(card, "- Author");
-        setCardBtn(card, "Button title", "https://adaptivecards.io");
+        setCardSummary(card, summaryAsString);
+        setCardAuthor(card, authorAsString);
+        setCardBtn(card, buttonTitleAsString, "https://adaptivecards.io");
     }
 
     private getTeamList = async () => {
@@ -166,20 +224,69 @@ export default class NewMessage extends React.Component<INewMessageProps, formSt
         }
     }
 
+    private getGroupItems() {
+        if (this.state.groups) {
+            return this.makeDropdownItems(this.state.groups);
+        }
+        const dropdownItems: dropdownItem[] = [];
+        return dropdownItems;
+    }
+
+    private setGroupAccess = async () => {
+        await verifyGroupAccess().then(() => {
+            this.setState({
+                groupAccess: true
+            });
+        }).catch((error) => {
+            const errorStatus = error.response.status;
+            if (errorStatus === 403) {
+                this.setState({
+                    groupAccess: false
+                });
+            }
+            else {
+                throw error;
+            }
+        });
+    }
+
+    private getGroupData = async (id: number) => {
+        try {
+            const response = await getGroups(id);
+            this.setState({
+                groups: response.data
+            });
+        }
+        catch (error) {
+            return error;
+        }
+    }
+
     private getItem = async (id: number) => {
         try {
             const response = await getDraftNotification(id);
             const draftMessageDetail = response.data;
-            const selectedRadioButton = draftMessageDetail.rosters.length > 0 ? "rosters" : draftMessageDetail.allUsers ? "allUsers" : "teams";
-
+            let selectedRadioButton = "teams";
+            if (draftMessageDetail.rosters.length > 0) {
+                selectedRadioButton = "rosters";
+            }
+            else if (draftMessageDetail.groups.length > 0) {
+                selectedRadioButton = "groups";
+            }
+            else if (draftMessageDetail.allUsers) {
+                selectedRadioButton = "allUsers";
+            }
             this.setState({
                 teamsOptionSelected: draftMessageDetail.teams.length > 0,
                 selectedTeamsNum: draftMessageDetail.teams.length,
                 rostersOptionSelected: draftMessageDetail.rosters.length > 0,
                 selectedRostersNum: draftMessageDetail.rosters.length,
+                groupsOptionSelected: draftMessageDetail.groups.length > 0,
+                selectedGroupsNum: draftMessageDetail.groups.length,
                 selectedRadioBtn: selectedRadioButton,
                 selectedTeams: draftMessageDetail.teams,
-                selectedRosters: draftMessageDetail.rosters
+                selectedRosters: draftMessageDetail.rosters,
+                selectedGroups: draftMessageDetail.groups
             });
 
             setCardTitle(this.card, draftMessageDetail.title);
@@ -225,8 +332,8 @@ export default class NewMessage extends React.Component<INewMessageProps, formSt
                                 <Input
                                     className="inputField"
                                     value={this.state.title}
-                                    label="Title"
-                                    placeholder="Title (required)"
+                                    label={this.localize("TitleText")}
+                                    placeholder={this.localize("PlaceHolderTitle")}
                                     onChange={this.onTitleChanged}
                                     autoComplete="off"
                                     required
@@ -235,8 +342,8 @@ export default class NewMessage extends React.Component<INewMessageProps, formSt
                                 <Input
                                     className="inputField"
                                     value={this.state.imageLink}
-                                    label="Image URL"
-                                    placeholder="Image URL"
+                                    label={this.localize("ImageURL")}
+                                    placeholder={this.localize("ImageURL")}
                                     onChange={this.onImageLinkChanged}
                                     errorLabel={this.state.errorImageUrlMessage}
                                     autoComplete="off"
@@ -245,8 +352,8 @@ export default class NewMessage extends React.Component<INewMessageProps, formSt
                                 <TextArea
                                     className="inputField textArea"
                                     autoFocus
-                                    placeholder="Summary"
-                                    label="Summary"
+                                    placeholder={this.localize("Summary")}
+                                    label={this.localize("Summary")}
                                     value={this.state.summary}
                                     onChange={this.onSummaryChanged}
                                 />
@@ -254,8 +361,8 @@ export default class NewMessage extends React.Component<INewMessageProps, formSt
                                 <Input
                                     className="inputField"
                                     value={this.state.author}
-                                    label="Author"
-                                    placeholder="Author"
+                                    label={this.localize("Author")}
+                                    placeholder={this.localize("Author")}
                                     onChange={this.onAuthorChanged}
                                     autoComplete="off"
                                 />
@@ -263,8 +370,8 @@ export default class NewMessage extends React.Component<INewMessageProps, formSt
                                 <Input
                                     className="inputField"
                                     value={this.state.btnTitle}
-                                    label="Button title"
-                                    placeholder="Button title"
+                                    label={this.localize("ButtonTitle")}
+                                    placeholder={this.localize("ButtonTitle")}
                                     onChange={this.onBtnTitleChanged}
                                     autoComplete="off"
                                 />
@@ -272,8 +379,8 @@ export default class NewMessage extends React.Component<INewMessageProps, formSt
                                 <Input
                                     className="inputField"
                                     value={this.state.btnLink}
-                                    label="Button URL"
-                                    placeholder="Button URL"
+                                    label={this.localize("ButtonURL")}
+                                    placeholder={this.localize("ButtonURL")}
                                     onChange={this.onBtnLinkChanged}
                                     errorLabel={this.state.errorButtonUrlMessage}
                                     autoComplete="off"
@@ -285,7 +392,7 @@ export default class NewMessage extends React.Component<INewMessageProps, formSt
 
                         <div className="footerContainer">
                             <div className="buttonContainer">
-                                <Button content="Next" disabled={this.isNextBtnDisabled()} id="saveBtn" onClick={this.onNext} primary />
+                                <Button content={this.localize("Next")} disabled={this.isNextBtnDisabled()} id="saveBtn" onClick={this.onNext} primary />
                             </div>
                         </div>
                     </div>
@@ -296,38 +403,65 @@ export default class NewMessage extends React.Component<INewMessageProps, formSt
                     <div className="taskModule">
                         <div className="formContainer">
                             <div className="formContentContainer" >
-                                <h3>Choose how you want to send your message</h3>
+                                <h3>{this.localize("SendHeadingText")}</h3>
                                 <RadiobuttonGroup
                                     className="radioBtns"
                                     value={this.state.selectedRadioBtn}
                                     onSelected={this.onGroupSelected}
                                 >
-                                    <Radiobutton name="grouped" value="teams" label="Send to General channel of specific teams" />
+                                    <Radiobutton name="grouped" value="teams" label={this.localize("SendToGeneralChannel")} />
                                     <Dropdown
                                         hidden={!this.state.teamsOptionSelected}
-                                        placeholder="Select team(s)"
+                                        placeholder={this.localize("SendToGeneralChannelPlaceHolder")}
                                         search
                                         multiple
                                         items={this.getItems()}
                                         value={this.state.selectedTeams}
                                         onSelectedChange={this.onTeamsChange}
-                                        noResultsMessage="We couldn't find any matches."
+                                        noResultsMessage={this.localize("NoMatchMessage")}
                                     />
-                                    <Radiobutton name="grouped" value="rosters" label="Send in chat to specific people" />
+                                    <Radiobutton name="grouped" value="rosters" label={this.localize("SendToRosters")} />
                                     <Dropdown
                                         hidden={!this.state.rostersOptionSelected}
-                                        placeholder="Choose team(s) members"
+                                        placeholder={this.localize("SendToRostersPlaceHolder")}
                                         search
                                         multiple
                                         items={this.getItems()}
                                         value={this.state.selectedRosters}
                                         onSelectedChange={this.onRostersChange}
-                                        noResultsMessage="We couldn't find any matches."
+                                        unstable_pinned={this.state.unstablePinned}
+                                        noResultsMessage={this.localize("NoMatchMessage")}
                                     />
-                                    <Radiobutton name="grouped" value="allUsers" label="Send in chat to everyone" />
+                                    <Radiobutton name="grouped" value="allUsers" label={this.localize("SendToAllUsers")} />
                                     <div className={this.state.selectedRadioBtn === "allUsers" ? "" : "hide"}>
                                         <div className="noteText">
-                                            <Text error content="Note: This option sends the message to everyone in your org who has access to the app." />
+                                            <Text error content={this.localize("SendToAllUsersNote")} />
+                                        </div>
+                                    </div>
+                                    <Radiobutton name="grouped" value="groups" label={this.localize("SendToGroups")} />
+                                    <div className={this.state.groupsOptionSelected && !this.state.groupAccess ? "" : "hide"}>
+                                        <div className="noteText">
+                                            <Text error content={this.localize("SendToGroupsPermissionNote")} />
+                                        </div>
+                                    </div>
+                                    <Dropdown
+                                        className="hideToggle"
+                                        hidden={!this.state.groupsOptionSelected || !this.state.groupAccess}
+                                        placeholder={this.localize("SendToGroupsPlaceHolder")}
+                                        search={this.onGroupSearch}
+                                        multiple
+                                        loading={this.state.loading}
+                                        loadingMessage={this.localize("LoadingText")}
+                                        items={this.getGroupItems()}
+                                        value={this.state.selectedGroups}
+                                        onSearchQueryChange={this.onGroupSearchQueryChange}
+                                        onSelectedChange={this.onGroupsChange}
+                                        noResultsMessage={this.state.noResultMessage}
+                                        unstable_pinned={this.state.unstablePinned}
+                                    />
+                                    <div className={this.state.groupsOptionSelected && this.state.groupAccess ? "" : "hide"}>
+                                        <div className="noteText">
+                                            <Text error content={this.localize("SendToGroupsNote")} />
                                         </div>
                                     </div>
                                 </RadiobuttonGroup>
@@ -338,8 +472,8 @@ export default class NewMessage extends React.Component<INewMessageProps, formSt
 
                         <div className="footerContainer">
                             <div className="buttonContainer">
-                                <Button content="Back" onClick={this.onBack} secondary />
-                                <Button content="Save as draft" disabled={this.isSaveBtnDisabled()} id="saveBtn" onClick={this.onSave} primary />
+                                <Button content={this.localize("Back")} onClick={this.onBack} secondary />
+                                <Button content={this.localize("SaveAsDraft")} disabled={this.isSaveBtnDisabled()} id="saveBtn" onClick={this.onSave} primary />
                             </div>
                         </div>
                     </div>
@@ -355,20 +489,23 @@ export default class NewMessage extends React.Component<INewMessageProps, formSt
             selectedRadioBtn: value,
             teamsOptionSelected: value === 'teams',
             rostersOptionSelected: value === 'rosters',
+            groupsOptionSelected: value === 'groups',
             allUsersOptionSelected: value === 'allUsers',
             selectedTeams: value === 'teams' ? this.state.selectedTeams : [],
             selectedTeamsNum: value === 'teams' ? this.state.selectedTeamsNum : 0,
             selectedRosters: value === 'rosters' ? this.state.selectedRosters : [],
             selectedRostersNum: value === 'rosters' ? this.state.selectedRostersNum : 0,
+            selectedGroups: value === 'groups' ? this.state.selectedGroups : [],
+            selectedGroupsNum: value === 'groups' ? this.state.selectedGroupsNum : 0,
         });
     }
 
     private isSaveBtnDisabled = () => {
         const teamsSelectionIsValid = (this.state.teamsOptionSelected && (this.state.selectedTeamsNum !== 0)) || (!this.state.teamsOptionSelected);
         const rostersSelectionIsValid = (this.state.rostersOptionSelected && (this.state.selectedRostersNum !== 0)) || (!this.state.rostersOptionSelected);
-        const nothingSelected = (!this.state.teamsOptionSelected) && (!this.state.rostersOptionSelected) && (!this.state.allUsersOptionSelected);
-
-        return (!teamsSelectionIsValid || !rostersSelectionIsValid || nothingSelected)
+        const groupsSelectionIsValid = (this.state.groupsOptionSelected && (this.state.selectedGroupsNum !== 0)) || (!this.state.groupsOptionSelected);
+        const nothingSelected = (!this.state.teamsOptionSelected) && (!this.state.rostersOptionSelected) && (!this.state.groupsOptionSelected) && (!this.state.allUsersOptionSelected);
+        return (!teamsSelectionIsValid || !rostersSelectionIsValid || !groupsSelectionIsValid || nothingSelected)
     }
 
     private isNextBtnDisabled = () => {
@@ -383,13 +520,21 @@ export default class NewMessage extends React.Component<INewMessageProps, formSt
         if (this.state.teams) {
             let remainingUserTeams = this.state.teams;
             if (this.state.selectedRadioBtn !== "allUsers") {
-                remainingUserTeams = this.state.selectedRadioBtn === "teams" ? this.state.teams.filter(x => this.state.selectedTeams.findIndex(y => y.team.id === x.teamId) < 0) : this.state.teams.filter(x => this.state.selectedRosters.findIndex(y => y.team.id === x.teamId) < 0);
+                if (this.state.selectedRadioBtn === "teams") {
+                    this.state.teams.filter(x => this.state.selectedTeams.findIndex(y => y.team.id === x.id) < 0);
+                }
+                else if (this.state.selectedRadioBtn === "rosters") {
+                    this.state.teams.filter(x => this.state.selectedRosters.findIndex(y => y.team.id === x.id) < 0);
+                }
             }
             remainingUserTeams.forEach((element) => {
                 resultedTeams.push({
+                    key: element.id,
                     header: element.name,
+                    content: element.mail,
+                    image: ImageUtil.makeInitialImage(element.name),
                     team: {
-                        id: element.teamId
+                        id: element.id
                     }
                 });
             });
@@ -397,29 +542,102 @@ export default class NewMessage extends React.Component<INewMessageProps, formSt
         return resultedTeams;
     }
 
+    private static MAX_SELECTED_TEAMS_NUM: number = 20;
+
     private onTeamsChange = (event: any, itemsData: any) => {
+        if (itemsData.value.length > NewMessage.MAX_SELECTED_TEAMS_NUM) return;
         this.setState({
             selectedTeams: itemsData.value,
             selectedTeamsNum: itemsData.value.length,
+            selectedRosters: [],
+            selectedRostersNum: 0,
+            selectedGroups: [],
+            selectedGroupsNum: 0
+        })
+    }
+
+    private onRostersChange = (event: any, itemsData: any) => {
+        if (itemsData.value.length > NewMessage.MAX_SELECTED_TEAMS_NUM) return;
+        this.setState({
+            selectedRosters: itemsData.value,
+            selectedRostersNum: itemsData.value.length,
+            selectedTeams: [],
+            selectedTeamsNum: 0,
+            selectedGroups: [],
+            selectedGroupsNum: 0
+        })
+    }
+
+    private onGroupsChange = (event: any, itemsData: any) => {
+        this.setState({
+            selectedGroups: itemsData.value,
+            selectedGroupsNum: itemsData.value.length,
+            groups: [],
+            selectedTeams: [],
+            selectedTeamsNum: 0,
             selectedRosters: [],
             selectedRostersNum: 0
         })
     }
 
-    private onRostersChange = (event: any, itemsData: any) => {
-        this.setState({
-            selectedRosters: itemsData.value,
-            selectedRostersNum: itemsData.value.length,
-            selectedTeams: [],
-            selectedTeamsNum: 0
-        })
+    private onGroupSearch = (itemList: any, searchQuery: string) => {
+        const result = itemList.filter(
+            (item: { header: string; content: string; }) => (item.header && item.header.toLowerCase().indexOf(searchQuery.toLowerCase()) !== -1) ||
+                (item.content && item.content.toLowerCase().indexOf(searchQuery.toLowerCase()) !== -1),
+        )
+        return result;
+    }
+
+    private onGroupSearchQueryChange = async (event: any, itemsData: any) => {
+
+        if (!itemsData.searchQuery) {
+            this.setState({
+                groups: [],
+                noResultMessage: "",
+            });
+        }
+        else if (itemsData.searchQuery && itemsData.searchQuery.length <= 2) {
+            this.setState({
+                loading: false,
+                noResultMessage: "No matches found.",
+            });
+        }
+        else if (itemsData.searchQuery && itemsData.searchQuery.length > 2) {
+            // handle event trigger on item select.
+            const result = itemsData.items && itemsData.items.find(
+                (item: { header: string; }) => item.header.toLowerCase() === itemsData.searchQuery.toLowerCase()
+            )
+            if (result) {
+                return;
+            }
+
+            this.setState({
+                loading: true,
+                noResultMessage: "",
+            });
+
+            try {
+                const query = encodeURIComponent(itemsData.searchQuery);
+                const response = await searchGroups(query);
+                this.setState({
+                    groups: response.data,
+                    loading: false,
+                    noResultMessage: "No matches found."
+                });
+            }
+            catch (error) {
+                return error;
+            }
+        }
     }
 
     private onSave = () => {
         const selectedTeams: string[] = [];
         const selctedRosters: string[] = [];
+        const selectedGroups: string[] = [];
         this.state.selectedTeams.forEach(x => selectedTeams.push(x.team.id));
         this.state.selectedRosters.forEach(x => selctedRosters.push(x.team.id));
+        this.state.selectedGroups.forEach(x => selectedGroups.push(x.team.id));
 
         const draftMessage: IDraftMessage = {
             id: this.state.messageId,
@@ -431,6 +649,7 @@ export default class NewMessage extends React.Component<INewMessageProps, formSt
             buttonLink: this.state.btnLink,
             teams: selectedTeams,
             rosters: selctedRosters,
+            groups: selectedGroups,
             allUsers: this.state.allUsersOptionSelected
         };
 
@@ -457,7 +676,7 @@ export default class NewMessage extends React.Component<INewMessageProps, formSt
         try {
             await createDraftNotification(draftMessage);
         } catch (error) {
-            return error;
+            throw error;
         }
     }
 
@@ -650,3 +869,6 @@ export default class NewMessage extends React.Component<INewMessageProps, formSt
         adaptiveCard.onExecuteAction = function (action) { window.open(link, '_blank'); }
     }
 }
+
+const newMessageWithTranslation = withTranslation()(NewMessage);
+export default newMessageWithTranslation;

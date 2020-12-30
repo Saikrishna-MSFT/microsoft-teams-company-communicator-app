@@ -1,14 +1,23 @@
 import * as React from 'react';
+import { RouteComponentProps } from 'react-router-dom';
+import { withTranslation, WithTranslation } from "react-i18next";
+import * as AdaptiveCards from "adaptivecards";
+import { Loader, Button, Text, List, Image } from '@stardust-ui/react';
+import * as microsoftTeams from "@microsoft/teams-js";
+
 import './sendConfirmationTaskModule.scss';
 import { getDraftNotification, getConsentSummaries, sendDraftNotification } from '../../apis/messageListApi';
-import { RouteComponentProps } from 'react-router-dom';
-import * as AdaptiveCards from "adaptivecards";
-import { Loader, Button, Text } from '@stardust-ui/react';
 import {
     getInitAdaptiveCard, setCardTitle, setCardImageLink, setCardSummary,
     setCardAuthor, setCardBtn
 } from '../AdaptiveCard/adaptiveCard';
-import * as microsoftTeams from "@microsoft/teams-js";
+import { ImageUtil } from '../../utility/imageutility';
+import { TFunction } from "i18next";
+
+export interface IListItem {
+    header: string,
+    media: JSX.Element,
+}
 
 export interface IMessage {
     id: string;
@@ -27,16 +36,21 @@ export interface IMessage {
     buttonTitle?: string;
 }
 
+export interface SendConfirmationTaskModuleProps extends RouteComponentProps, WithTranslation {
+}
+
 export interface IStatusState {
     message: IMessage;
     loader: boolean;
     teamNames: string[];
     rosterNames: string[];
+    groupNames: string[];
     allUsers: boolean;
     messageId: number;
 }
 
-class SendConfirmationTaskModule extends React.Component<RouteComponentProps, IStatusState> {
+class SendConfirmationTaskModule extends React.Component<SendConfirmationTaskModuleProps, IStatusState> {
+    readonly localize: TFunction;
     private initMessage = {
         id: "",
         title: ""
@@ -44,16 +58,17 @@ class SendConfirmationTaskModule extends React.Component<RouteComponentProps, IS
 
     private card: any;
 
-    constructor(props: RouteComponentProps) {
+    constructor(props: SendConfirmationTaskModuleProps) {
         super(props);
-
-        this.card = getInitAdaptiveCard();
+        this.localize = this.props.t;
+        this.card = getInitAdaptiveCard(this.localize);
 
         this.state = {
             message: this.initMessage,
             loader: true,
             teamNames: [],
             rosterNames: [],
+            groupNames: [],
             allUsers: false,
             messageId: 0,
         };
@@ -71,6 +86,7 @@ class SendConfirmationTaskModule extends React.Component<RouteComponentProps, IS
                     this.setState({
                         teamNames: response.data.teamNames.sort(),
                         rosterNames: response.data.rosterNames.sort(),
+                        groupNames: response.data.groupNames.sort(),
                         allUsers: response.data.allUsers,
                         messageId: id,
                     }, () => {
@@ -124,14 +140,12 @@ class SendConfirmationTaskModule extends React.Component<RouteComponentProps, IS
                     <div className="formContainer">
                         <div className="formContentContainer" >
                             <div className="contentField">
-                                <h3>Send this message?</h3>
-                                <span>Send to the following recipients:</span>
+                                <h3>{this.localize("ConfirmToSend")}</h3>
+                                <span>{this.localize("SendToRecipientsLabel")}</span>
                             </div>
 
                             <div className="results">
-                                {this.displaySelectedTeams()}
-                                {this.displaySelectedRosterTeams()}
-                                {this.displayAllUsersSelection()}
+                                {this.renderAudienceSelection()}
                             </div>
                         </div>
                         <div className="adaptiveCardContainer">
@@ -140,8 +154,8 @@ class SendConfirmationTaskModule extends React.Component<RouteComponentProps, IS
 
                     <div className="footerContainer">
                         <div className="buttonContainer">
-                            <Loader id="sendingLoader" className="hiddenLoader sendingLoader" size="smallest" label="Preparing message" labelPosition="end" />
-                            <Button content="Send" id="sendBtn" onClick={this.onSendMessage} primary />
+                            <Loader id="sendingLoader" className="hiddenLoader sendingLoader" size="smallest" label={this.localize("PreparingMessageLabel")} labelPosition="end" />
+                            <Button content={this.localize("Send")} id="sendBtn" onClick={this.onSendMessage} primary />
                         </div>
                     </div>
                 </div>
@@ -157,50 +171,50 @@ class SendConfirmationTaskModule extends React.Component<RouteComponentProps, IS
         });
     }
 
-    private displaySelectedTeams = () => {
-        let length = this.state.teamNames.length;
-        if (length === 0) {
-            return (<div />);
-        } else {
-            return (<div key="teamNames"> <span className="label">Team(s): </span> {this.state.teamNames.map((team, index) => {
-                if (length === index + 1) {
-                    return (<span key={`teamName${index}`} >{team}</span>);
-                } else {
-                    return (<span key={`teamName${index}`} >{team}, </span>);
+    private getItemList = (items: string[]) => {
+        let resultedTeams: IListItem[] = [];
+        if (items) {
+            resultedTeams = items.map((element) => {
+                const resultedTeam: IListItem = {
+                    header: element,
+                    media: <Image src={ImageUtil.makeInitialImage(element)} avatar />
                 }
-            })}</div>
-            );
+                return resultedTeam;
+            });
         }
+        return resultedTeams;
     }
 
-    private displaySelectedRosterTeams = () => {
-        let length = this.state.rosterNames.length;
-        if (length === 0) {
-            return (<div />);
-        } else {
-            return (<div key="rosterNames"> <span className="label">Team(s) members: </span> {this.state.rosterNames.map((roster, index) => {
-                if (length === index + 1) {
-                    return (<span key={`rosterName${index}`}>{roster}</span>);
-                } else {
-                    return (<span key={`rosterName${index}`}>{roster}, </span>);
-                }
-            })}</div>
-            );
-        }
-    }
-
-    private displayAllUsersSelection = () => {
-        if (!this.state.allUsers) {
-            return (<div />);
-        } else {
-            return (<div key="allUsers">
-                <span className="label">All users</span>
-                <div className="noteText">
-                    <Text error content="Note: This option sends the message to everyone in your org who has access to the app." />
+    private renderAudienceSelection = () => {
+        if (this.state.teamNames && this.state.teamNames.length > 0) {
+            return (
+                <div key="teamNames"> <span className="label">{this.localize("TeamsLabel")}</span>
+                    <List items={this.getItemList(this.state.teamNames)} />
                 </div>
-            </div>);
+            );
+        } else if (this.state.rosterNames && this.state.rosterNames.length > 0) {
+            return (
+                <div key="rosterNames"> <span className="label">{this.localize("TeamsMembersLabel")}</span>
+                    <List items={this.getItemList(this.state.rosterNames)} />
+                </div>);
+        } else if (this.state.groupNames && this.state.groupNames.length > 0) {
+            return (
+                <div key="groupNames" > <span className="label">{this.localize("GroupsMembersLabel")}</span>
+                    <List items={this.getItemList(this.state.groupNames)} />
+                </div>);
+        } else if (this.state.allUsers) {
+            return (
+                <div key="allUsers">
+                    <span className="label">{this.localize("AllUsersLabel")}</span>
+                    <div className="noteText">
+                        <Text error content={this.localize("SendToAllUsersNote")} />
+                    </div>
+                </div>);
+        } else {
+            return (<div></div>);
         }
     }
 }
 
-export default SendConfirmationTaskModule;
+const sendConfirmationTaskModuleWithTranslation = withTranslation()(SendConfirmationTaskModule);
+export default sendConfirmationTaskModuleWithTranslation;
