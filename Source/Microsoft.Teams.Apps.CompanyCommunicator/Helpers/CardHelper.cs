@@ -12,7 +12,7 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Helpers
     using Microsoft.Teams.Apps.CompanyCommunicator.Interfaces;
 
     /// <summary>
-    /// Card Helper
+    /// Card Helper.
     /// </summary>
     public class CardHelper : ICard
     {
@@ -29,9 +29,9 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Helpers
         }
 
         /// <summary>
-        /// Get Welcome Card Attachment
+        /// Get Welcome Card Attachment.
         /// </summary>
-        /// <returns>Welcome card</returns>
+        /// <returns>Welcome card.</returns>
         public Attachment GetWelcomeCard()
         {
             var welcomeCard = new AdaptiveCard("1.0")

@@ -148,6 +148,9 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator
                 sp.GetService<IConfiguration>().GetValue<string>("StorageAccountConnectionString"),
                 Common.Constants.BlobContainerName));
 
+            // Helper services.
+            services.AddHelpers();
+
             // The bot needs an HttpClient to download and upload files.
             services.AddHttpClient();
 
