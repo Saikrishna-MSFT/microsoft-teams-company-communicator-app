@@ -438,7 +438,7 @@ class NewMessage extends React.Component<INewMessageProps, formState> {
                                             <Text error content={this.localize("SendToAllUsersNote")} />
                                         </div>
                                     </div>
-                                    <Radiobutton name="grouped" value="groups" label={this.localize("SendToGroups")} />
+                                    {/* <Radiobutton name="grouped" value="groups" label={this.localize("SendToGroups")} /> */}
                                     <div className={this.state.groupsOptionSelected && !this.state.groupAccess ? "" : "hide"}>
                                         <div className="noteText">
                                             <Text error content={this.localize("SendToGroupsPermissionNote")} />

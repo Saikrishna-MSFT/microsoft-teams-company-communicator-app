@@ -18,6 +18,8 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Helpers
     {
         private readonly IConfiguration configuration;
         private readonly string welcomeText = "Appy is your official Microsoft Teams Platform assistant!";
+        private readonly string welocmeDescription1 = "In this NDA community, you will get the most up to date information on all things Microsoft Teams, have an opportunity to join any of our Monthly Office Hours, connect and network with other Partners who are also interested in Microsoft Teams as well as interact with the Microsoft Teams Engineering team.";
+        private readonly string welocmeDescription2 = "We are happy you are here!";
 
         /// <summary>
         /// Initializes a new instance of the <see cref="CardHelper"/> class.
@@ -56,11 +58,37 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Helpers
                                          Weight = AdaptiveTextWeight.Bolder,
                                          Size = AdaptiveTextSize.Small,
                                      },
-                                     new AdaptiveTextRun()
-                                     {
-                                         Text = " Use Appy to:​",
-                                         Size = AdaptiveTextSize.Small,
-                                     },
+                                },
+                            },
+                            new AdaptiveTextBlock()
+                            {
+                                Text = this.welocmeDescription1,
+                                Wrap = true,
+                                Size = AdaptiveTextSize.Small,
+                            },
+                            new AdaptiveTextBlock()
+                            {
+                                Text = this.welocmeDescription2,
+                                Wrap = true,
+                                Size = AdaptiveTextSize.Small,
+                            },
+                            new AdaptiveColumnSet()
+                            {
+                                Columns = new List<AdaptiveColumn>()
+                                {
+                                    new AdaptiveColumn()
+                                    {
+                                         Width = AdaptiveColumnWidth.Auto,
+                                         Items = new List<AdaptiveElement>()
+                                         {
+                                             new AdaptiveTextBlock() { Text = "Release Updates", Color = AdaptiveTextColor.Accent, Size = AdaptiveTextSize.Medium, Spacing = AdaptiveSpacing.None, HorizontalAlignment = AdaptiveHorizontalAlignment.Center },
+                                         },
+                                         SelectAction = new AdaptiveOpenUrlAction()
+                                         {
+                                             Url = new Uri(this.configuration["ReleaseUpdates"]),
+                                             Title = "Release Updates",
+                                         },
+                                    },
                                 },
                             },
                             new AdaptiveColumnSet()
@@ -72,21 +100,12 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Helpers
                                          Width = AdaptiveColumnWidth.Auto,
                                          Items = new List<AdaptiveElement>()
                                          {
-                                             new AdaptiveImage() { Url = new Uri(this.configuration["BaseUri"] + "/Images/EmailNotifications.png"), Size = AdaptiveImageSize.Small, Style = AdaptiveImageStyle.Default, SelectAction = new AdaptiveOpenUrlAction() { Url = new Uri(this.configuration["EmailNotifications"]), Title = "Email Notifications" }, HorizontalAlignment = AdaptiveHorizontalAlignment.Center, Spacing = AdaptiveSpacing.None },
-                                         },
-                                    },
-
-                                    new AdaptiveColumn()
-                                    {
-                                         Width = AdaptiveColumnWidth.Auto,
-                                         Items = new List<AdaptiveElement>()
-                                         {
-                                             new AdaptiveTextBlock() { Text = "Email Notifications", Color = AdaptiveTextColor.Accent, Size = AdaptiveTextSize.Medium, Spacing = AdaptiveSpacing.None, HorizontalAlignment = AdaptiveHorizontalAlignment.Center },
+                                             new AdaptiveTextBlock() { Text = "Platform and GraphAPI", Color = AdaptiveTextColor.Accent, Size = AdaptiveTextSize.Medium, Spacing = AdaptiveSpacing.None, HorizontalAlignment = AdaptiveHorizontalAlignment.Center },
                                          },
                                          SelectAction = new AdaptiveOpenUrlAction()
                                          {
-                                             Url = new Uri(this.configuration["EmailNotifications"]),
-                                             Title = "Email Notifications",
+                                             Url = new Uri(this.configuration["PlatformAndGraphAPI"]),
+                                             Title = "Platform and GraphAPI",
                                          },
                                     },
                                 },
