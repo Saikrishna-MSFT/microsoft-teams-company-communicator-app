@@ -79,12 +79,12 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Bot
 
             if (activity.MembersAdded != null)
             {
-                await this.teamsDataCapture.OnBotAddedAsync(activity);
+                // await this.teamsDataCapture.OnBotAddedAsync(activity);
             }
 
             if (activity.MembersRemoved != null)
             {
-                await this.teamsDataCapture.OnBotRemovedAsync(activity);
+                // await this.teamsDataCapture.OnBotRemovedAsync(activity);
             }
         }
 
@@ -136,32 +136,32 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Bot
                     }
                     else
                     {
-                        var connectorClient = new ConnectorClient(new Uri(turnContext.Activity.ServiceUrl), this.configuration["AuthorAppId"], this.configuration["AuthorAppPassword"]);
-                        var message = turnContext.Activity;
-                        var channelData = message.GetChannelData<TeamsChannelData>();
-                        var teamorConversationId = channelData.Team != null ? channelData.Team.Id : message.Conversation.Id;
-                        var members = await connectorClient.Conversations.GetConversationMembersAsync(teamorConversationId);
-                        foreach (var mem in members)
-                        {
-                            var card = this.cardHelper.GetWelcomeCard();
-                            var replyMessage = Activity.CreateMessageActivity();
-                            var parameters = new ConversationParameters
-                            {
-                                Members = new ChannelAccount[] { new ChannelAccount(mem.Id) },
-                                ChannelData = new TeamsChannelData
-                                {
-                                    Tenant = channelData.Tenant,
-                                    Notification = new NotificationInfo() { Alert = true },
-                                },
-                            };
+                        // var connectorClient = new ConnectorClient(new Uri(turnContext.Activity.ServiceUrl), this.configuration["AuthorAppId"], this.configuration["AuthorAppPassword"]);
+                        // var message = turnContext.Activity;
+                        // var channelData = message.GetChannelData<TeamsChannelData>();
+                        // var teamorConversationId = channelData.Team != null ? channelData.Team.Id : message.Conversation.Id;
+                        // var members = await connectorClient.Conversations.GetConversationMembersAsync(teamorConversationId);
+                        // foreach (var mem in members)
+                        // {
+                        //    var card = this.cardHelper.GetWelcomeCard();
+                        //    var replyMessage = Activity.CreateMessageActivity();
+                        //    var parameters = new ConversationParameters
+                        //    {
+                        //        Members = new ChannelAccount[] { new ChannelAccount(mem.Id) },
+                        //        ChannelData = new TeamsChannelData
+                        //        {
+                        //            Tenant = channelData.Tenant,
+                        //            Notification = new NotificationInfo() { Alert = true },
+                        //        },
+                        //    };
 
-                            var conversationResource = await connectorClient.Conversations.CreateConversationAsync(parameters);
-                            replyMessage.ChannelData = new TeamsChannelData() { Notification = new NotificationInfo(true) };
-                            replyMessage.Conversation = new ConversationAccount(id: conversationResource.Id.ToString());
-                            replyMessage.TextFormat = TextFormatTypes.Xml;
-                            replyMessage.Attachments.Add(card);
-                            await connectorClient.Conversations.SendToConversationAsync((Activity)replyMessage);
-                        }
+                        // var conversationResource = await connectorClient.Conversations.CreateConversationAsync(parameters);
+                        //    replyMessage.ChannelData = new TeamsChannelData() { Notification = new NotificationInfo(true) };
+                        //    replyMessage.Conversation = new ConversationAccount(id: conversationResource.Id.ToString());
+                        //    replyMessage.TextFormat = TextFormatTypes.Xml;
+                        //    replyMessage.Attachments.Add(card);
+                        //    await connectorClient.Conversations.SendToConversationAsync((Activity)replyMessage);
+                        // }
                     }
                 }
             }
