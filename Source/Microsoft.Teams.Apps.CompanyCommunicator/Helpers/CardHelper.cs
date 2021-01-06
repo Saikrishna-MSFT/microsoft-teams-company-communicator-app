@@ -110,6 +110,63 @@ namespace Microsoft.Teams.Apps.CompanyCommunicator.Helpers
                                     },
                                 },
                             },
+                            new AdaptiveColumnSet()
+                            {
+                                Columns = new List<AdaptiveColumn>()
+                                {
+                                    new AdaptiveColumn()
+                                    {
+                                         Width = AdaptiveColumnWidth.Auto,
+                                         Items = new List<AdaptiveElement>()
+                                         {
+                                             new AdaptiveTextBlock() { Text = "Office Hours", Color = AdaptiveTextColor.Accent, Size = AdaptiveTextSize.Medium, Spacing = AdaptiveSpacing.None, HorizontalAlignment = AdaptiveHorizontalAlignment.Center },
+                                         },
+                                         SelectAction = new AdaptiveOpenUrlAction()
+                                         {
+                                             Url = new Uri(this.configuration["OfficeHours"]),
+                                             Title = "Office Hours",
+                                         },
+                                    },
+                                },
+                            },
+                            new AdaptiveColumnSet()
+                            {
+                                Columns = new List<AdaptiveColumn>()
+                                {
+                                    new AdaptiveColumn()
+                                    {
+                                         Width = AdaptiveColumnWidth.Auto,
+                                         Items = new List<AdaptiveElement>()
+                                         {
+                                             new AdaptiveTextBlock() { Text = "Industry - FLW and Healthcare", Color = AdaptiveTextColor.Accent, Size = AdaptiveTextSize.Medium, Spacing = AdaptiveSpacing.None, HorizontalAlignment = AdaptiveHorizontalAlignment.Center },
+                                         },
+                                         SelectAction = new AdaptiveOpenUrlAction()
+                                         {
+                                             Url = new Uri(this.configuration["IndustryFLWandHealthcare"]),
+                                             Title = "Industry - FLW and Healthcare",
+                                         },
+                                    },
+                                },
+                            },
+                            new AdaptiveColumnSet()
+                            {
+                                Columns = new List<AdaptiveColumn>()
+                                {
+                                    new AdaptiveColumn()
+                                    {
+                                         Width = AdaptiveColumnWidth.Auto,
+                                         Items = new List<AdaptiveElement>()
+                                         {
+                                             new AdaptiveTextBlock() { Text = "Events", Color = AdaptiveTextColor.Accent, Size = AdaptiveTextSize.Medium, Spacing = AdaptiveSpacing.None, HorizontalAlignment = AdaptiveHorizontalAlignment.Center },
+                                         },
+                                         SelectAction = new AdaptiveOpenUrlAction()
+                                         {
+                                             Url = new Uri(this.configuration["Events"]),
+                                             Title = "Events",
+                                         },
+                                    },
+                                },
+                            },
                         },
                     },
                 },
